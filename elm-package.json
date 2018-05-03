@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "summary": "feed the tree some ether.",
-    "repository": "https://github.com/cmditch/elm-web3.git",
+    "repository": "https://github.com/cmditch/mel-bew3.git",
     "license": "BSD3",
     "source-directories": [
         "./src"
