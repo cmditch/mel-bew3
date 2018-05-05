@@ -47,6 +47,7 @@ import Web3.Eth as Eth
 import Web3.Eth.Encode as Encode
 import Web3.Eth.Decode as Decode
 import Web3.Eth.Types exposing (..)
+import Web3.Types exposing (HttpProvider)
 import Web3.Utils exposing (Retry, retry)
 
 
@@ -55,7 +56,7 @@ type TxSentry msg
     = TxSentry
         { inPort : (Value -> Msg) -> Sub Msg
         , outPort : Value -> Cmd Msg
-        , nodePath : String
+        , nodePath : HttpProvider
         , tagger : Msg -> msg
         , txs : Dict Int (TxState msg)
         , debug : Bool
@@ -64,8 +65,8 @@ type TxSentry msg
 
 
 {-| -}
-init : ( (Value -> Msg) -> Sub Msg, Value -> Cmd Msg ) -> (Msg -> msg) -> String -> TxSentry msg
-init ( inPort, outPort ) tagger nodePath =
+init : ( Value -> Cmd Msg, (Value -> Msg) -> Sub Msg ) -> (Msg -> msg) -> HttpProvider -> TxSentry msg
+init ( outPort, inPort ) tagger nodePath =
     TxSentry
         { inPort = inPort
         , outPort = outPort
@@ -92,14 +93,14 @@ send onBroadcast txParams sentry =
 {-| -}
 sendWithReceipt : (Tx -> msg) -> (TxReceipt -> msg) -> Send -> TxSentry msg -> ( TxSentry msg, Cmd msg )
 sendWithReceipt onBroadcast onMined txParams sentry =
-    send_ { onSign = Nothing, onBroadcast = Just onBroadcast, onMined = Just onMined } txParams sentry
+    send_ { onSign = Nothing, onBroadcast = Just onBroadcast, onMined = Just ( onMined, 1 ) } txParams sentry
 
 
 {-| -}
 type alias CustomSend msg =
     { onSign : Maybe (TxHash -> msg)
     , onBroadcast : Maybe (Tx -> msg)
-    , onMined : Maybe (TxReceipt -> msg)
+    , onMined : Maybe ( TxReceipt -> msg, Int )
     }
 
 
@@ -117,7 +118,7 @@ withDebug (TxSentry sentry) =
 
 {-| Look into the errors this might cause, some kind of cleanup process should probably occur on changing a node.
 -}
-changeNode : String -> TxSentry msg -> TxSentry msg
+changeNode : HttpProvider -> TxSentry msg -> TxSentry msg
 changeNode newNodePath (TxSentry sentry) =
     let
         _ =
@@ -151,7 +152,7 @@ type alias TxState msg =
     { params : Send
     , onSignedTagger : Maybe (TxHash -> msg)
     , onBroadcastTagger : Maybe (Tx -> msg)
-    , onMinedTagger : Maybe (TxReceipt -> msg)
+    , onMinedTagger : Maybe ( TxReceipt -> msg, Int )
     , status : TxStatus
     }
 
@@ -192,8 +193,8 @@ update msg (TxSentry sentry) =
                                     Cmd.none
 
                         txBroadcastCmd =
-                            Cmd.map sentry.tagger <|
-                                Task.attempt (TxSent ref) (pollTxBroadcast sentry.nodePath txHash)
+                            Task.attempt (TxSent ref) (pollTxBroadcast sentry.nodePath txHash)
+                                |> Cmd.map sentry.tagger
                     in
                         ( TxSentry { sentry | txs = Dict.update ref (txStatusSigned txHash) sentry.txs }
                         , Cmd.batch
@@ -225,8 +226,9 @@ update msg (TxSentry sentry) =
 
                                     txMinedCmd =
                                         case txState.onMinedTagger of
-                                            Just _ ->
-                                                Task.attempt (TxMined ref) (pollTxReceipt sentry.nodePath tx.hash)
+                                            Just ( _, requiredConfirmation ) ->
+                                                Task.attempt (TxMined ref)
+                                                    (pollTxReceipt sentry.nodePath tx.hash requiredConfirmation)
                                                     |> Cmd.map sentry.tagger
 
                                             Nothing ->
@@ -261,7 +263,7 @@ update msg (TxSentry sentry) =
                                 let
                                     cmdIfMined =
                                         case txState.onMinedTagger of
-                                            Just txReceiptToMsg ->
+                                            Just ( txReceiptToMsg, _ ) ->
                                                 Task.perform txReceiptToMsg (Task.succeed txReceipt)
 
                                             Nothing ->
@@ -289,14 +291,26 @@ update msg (TxSentry sentry) =
                 ( TxSentry sentry, Cmd.none )
 
 
-pollTxReceipt : String -> TxHash -> Task Http.Error TxReceipt
-pollTxReceipt nodePath txHash =
+
+-- Chain Helpers
+
+
+pollTxReceipt : HttpProvider -> TxHash -> Int -> Task Http.Error TxReceipt
+pollTxReceipt nodePath txHash requiredConfirmations =
     Eth.getTxReceipt nodePath txHash
-        -- polls for 5 minutes every 5 seconds
+        -- polls for 5 minutes every 5 seconds for the first confirmation
         |> retry { attempts = 60, sleep = 5 }
+        -- if requiredConfirmations > 1, poll blockNumber accordingly
+        |> Task.andThen
+            (\txReceipt ->
+                pollTxConfirmations nodePath
+                    requiredConfirmations
+                    txReceipt.blockNumber
+                    txReceipt
+            )
 
 
-pollTxBroadcast : String -> TxHash -> Task Http.Error Tx
+pollTxBroadcast : HttpProvider -> TxHash -> Task Http.Error Tx
 pollTxBroadcast nodePath txHash =
     Process.sleep 250
         |> Task.andThen
@@ -305,6 +319,28 @@ pollTxBroadcast nodePath txHash =
                     -- polls for 30 seconds every 1 second
                     |> retry { attempts = 30, sleep = 1 }
             )
+
+
+pollTxConfirmations : HttpProvider -> Int -> Int -> TxReceipt -> Task Http.Error TxReceipt
+pollTxConfirmations nodePath requiredConfirmations currentBlock txReceipt =
+    if requiredConfirmations < 1 then
+        let
+            _ =
+                Debug.log "Invalid requiredConfirmations Param"
+                    requiredConfirmations
+        in
+            Task.succeed txReceipt
+    else if currentBlock - (requiredConfirmations - 1) == txReceipt.blockNumber then
+        Task.succeed txReceipt
+    else
+        Process.sleep 5000
+            |> Task.andThen (\_ -> Eth.getBlockNumber nodePath)
+            |> Task.andThen
+                (\blockNum ->
+                    Eth.getTxReceipt nodePath txReceipt.hash
+                        |> Task.andThen (\txReceipt -> pollTxConfirmations nodePath requiredConfirmations blockNum txReceipt)
+                        |> Task.mapError (\_ -> Http.BadUrl "Tx lost! Tx rebroadcast required due to chain re-org.")
+                )
 
 
 
@@ -334,7 +370,7 @@ encodeTxData : Int -> Send -> Value
 encodeTxData ref send =
     Encode.object
         [ ( "ref", Encode.int ref )
-        , ( "txParams", Encode.sendParams send )
+        , ( "txParams", Encode.txSend send )
         ]
 
 
