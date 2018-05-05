@@ -92,7 +92,7 @@ map f subEff =
                     TxSentry.CustomSend
                         (Maybe.map ((<<) f) onSign)
                         (Maybe.map ((<<) f) onBroadcast)
-                        (Maybe.map ((<<) f) onMined)
+                        (Maybe.map (\( subMsg, confirms ) -> ( subMsg >> f, confirms )) onMined)
             in
                 CustomSend newCustomSend send
 
