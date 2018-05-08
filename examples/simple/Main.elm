@@ -1,14 +1,16 @@
 port module Main exposing (..)
 
+import Eth
+import Eth.Decode as Decode
+import Eth.Types exposing (..)
+import Eth.Sentry.Tx as TxSentry exposing (..)
+import Eth.Units exposing (gwei)
 import Html exposing (..)
+import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode exposing (Value)
+import Process
 import Task
-import Web3.Eth as Eth
-import Web3.Eth.Decode as Decode
-import Web3.Eth.Types exposing (..)
-import Web3.Eth.TxSentry as TxSentry exposing (..)
-import Web3.Utils exposing (gwei, unsafeToAddress)
 
 
 main : Program Never Model Msg
@@ -27,17 +29,19 @@ type alias Model =
     , blockNumber : Maybe Int
     , tx : Maybe Tx
     , txReceipt : Maybe TxReceipt
+    , blockDepth : String
     , errors : List String
     }
 
 
 init : ( Model, Cmd Msg )
 init =
-    { txSentry = TxSentry.init ( txIn, txOut ) TxSentryMsg ethNode
+    { txSentry = TxSentry.init ( txOut, txIn ) TxSentryMsg ethNode
     , account = Nothing
     , blockNumber = Nothing
     , tx = Nothing
     , txReceipt = Nothing
+    , blockDepth = ""
     , errors = []
     }
         ! [ Task.perform PollBlock (Task.succeed <| Ok 0) ]
@@ -55,12 +59,19 @@ ethNode =
 view : Model -> Html Msg
 view model =
     div []
-        (List.map viewThing
-            [ ( "Current Block", toString model.blockNumber )
-            , ( "Tx", toString model.tx )
-            , ( "TxReceipt", toString model.txReceipt )
-            ]
-        )
+        [ div []
+            (List.map viewThing
+                [ ( "Current Block", toString model.blockNumber )
+                , ( "--------------------", "" )
+                , ( "Tx", toString model.tx )
+                , ( "--------------------", "" )
+                , ( "TxReceipt", toString model.txReceipt )
+                , ( "--------------------", "" )
+                , ( "BlockDepth", toString model.blockDepth )
+                ]
+            )
+        , button [ onClick InitTx ] [ text "Send Tx" ]
+        ]
 
 
 viewThing : ( String, String ) -> Html Msg
@@ -82,6 +93,7 @@ type Msg
     | InitTx
     | WatchTx Tx
     | WatchTxReceipt TxReceipt
+    | TrackTx TxTracker
     | NoOp
 
 
@@ -100,17 +112,19 @@ update msg model =
 
         PollBlock blockNumber ->
             { model | blockNumber = Result.toMaybe blockNumber }
-                ! [ Task.attempt PollBlock <| Eth.getBlockNumber ethNode ]
+                ! [ Task.attempt PollBlock <|
+                        Task.andThen (\_ -> Eth.getBlockNumber ethNode) (Process.sleep 1000)
+                  ]
 
         InitTx ->
             case model.account of
                 Just account ->
                     let
                         txParams =
-                            { to = Just <| unsafeToAddress ""
+                            { to = model.account
                             , from = model.account
                             , gas = Nothing
-                            , gasPrice = Nothing
+                            , gasPrice = Just <| gwei 4
                             , value = Just <| gwei 1
                             , data = Nothing
                             , nonce = Nothing
@@ -120,12 +134,12 @@ update msg model =
                             TxSentry.customSend
                                 { onSign = Nothing
                                 , onBroadcast = Just WatchTx
-                                , onMined = ( WatchTxReceipt, 5 )
+                                , onMined = Just ( WatchTxReceipt, Just ( 3, TrackTx ) )
                                 }
                                 txParams
                                 model.txSentry
                     in
-                        model ! []
+                        { model | txSentry = newSentry } ! [ sentryCmd ]
 
                 Nothing ->
                     model ! []
@@ -135,6 +149,9 @@ update msg model =
 
         WatchTxReceipt txReceipt ->
             { model | txReceipt = Just txReceipt } ! []
+
+        TrackTx blockDepth ->
+            { model | blockDepth = toString blockDepth } ! []
 
         NoOp ->
             model ! []
