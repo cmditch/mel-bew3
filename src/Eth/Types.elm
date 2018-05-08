@@ -1,8 +1,9 @@
-module Web3.Eth.Types
+module Eth.Types
     exposing
         ( Address
         , TxHash
         , BlockHash
+        , IPFSHash
         , BlockId(..)
         , Call
         , Send
@@ -15,6 +16,9 @@ module Web3.Eth.Types
         , Event
         , LogFilter
         , SyncStatus
+        , HttpProvider
+        , FilterId
+        , Hex
         )
 
 {-| Types
@@ -22,20 +26,27 @@ module Web3.Eth.Types
 
 # Simple
 
-@docs Address, TxHash, BlockHash
+@docs Address, TxHash, BlockHash, Hex
 
 
 # Complex
 
-@docs Call, Send, Tx, TxReceipt, BlockId ,Block, Uncle, BlockHead, Log, Event, LogFilter, SyncStatus
+@docs Call, Send, Tx, TxReceipt, BlockId, Block, Uncle, BlockHead, Log, Event, LogFilter, SyncStatus
+
+
+# Misc
+
+@docs HttpProvider, FilterId, IPFSHash
 
 -}
 
 import BigInt exposing (BigInt)
 import Json.Decode exposing (Decoder)
 import Time exposing (Time)
-import Web3.Internal.Types as Internal
-import Web3.Types exposing (Hex)
+import Internal.Types as Internal
+
+
+-- Simple
 
 
 {-| -}
@@ -51,6 +62,15 @@ type alias TxHash =
 {-| -}
 type alias BlockHash =
     Internal.BlockHash
+
+
+{-| -}
+type alias Hex =
+    Internal.Hex
+
+
+
+-- Complex
 
 
 {-| -}
@@ -216,3 +236,22 @@ type alias SyncStatus =
     , knownStates : Int
     , pulledStates : Int
     }
+
+
+
+-- Misc
+
+
+{-| -}
+type alias HttpProvider =
+    String
+
+
+{-| -}
+type alias FilterId =
+    String
+
+
+{-| -}
+type alias IPFSHash =
+    Internal.IPFSHash

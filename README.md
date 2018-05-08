@@ -1,15 +1,10 @@
-# <img src="https://cdn.rawgit.com/cmditch/elm-web3/rewrite/elm-web3-logo.svg" width="75"> mel-bew3
+# <img src="https://cdn.rawgit.com/cmditch/elm-ethereum/master/elm-ethereum-logo.svg" width="75"> elm-ethereum
 
-dApps in Elm
+DApps in Pure Elm, finally
 
-## Experimental!
-
-This is the dev package for elm-web3.  It's meant to be a testing ground for new ideas that __may or maynot__ actually make it into the `elm-web3` package.
-
-## Major changes may happen at any time to this Repo!
-
-Seriously, don't depend on it in production.
+Working on good examples and docs
 
 ###### Feed the tree some ether
+
 ### 🌳Ξ🌳Ξ🌳
 

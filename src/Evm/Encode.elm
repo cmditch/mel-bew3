@@ -1,4 +1,4 @@
-module Web3.Evm.Encode
+module Evm.Encode
     exposing
         ( Encoding(..)
         , encodeData
@@ -7,18 +7,25 @@ module Web3.Evm.Encode
         )
 
 {-| Encode before sending RPC Calls
+
 @docs Encoding, encodeData, encodeDataWithDebug, encode
+
 -}
 
 import BigInt exposing (BigInt)
-import Web3.Types exposing (Hex, IPFSHash)
-import Web3.Utils exposing (add0x, remove0x, functionSig, ipfsToBytes32)
-import Web3.Eth.Types exposing (Address)
-import Web3.Evm.Utils exposing (leftPad)
-import Web3.Internal.Types as Internal
+import Eth.Types exposing (Hex, IPFSHash)
+import Eth.Utils exposing (add0x, remove0x, functionSig, ipfsToBytes32)
+import Eth.Types exposing (Address)
+import Internal.Types as Internal
+import Internal.Utils exposing (..)
 
 
-{-| -}
+{-| Not yet implemented :
+
+    -- DO NOT USE
+    DBytesE, BytesE, StringE, ListE
+
+-}
 type Encoding
     = AddressE Address
     | UintE BigInt

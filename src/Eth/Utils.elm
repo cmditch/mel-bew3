@@ -1,11 +1,6 @@
-module Web3.Utils
+module Eth.Utils
     exposing
-        ( gwei
-        , eth
-        , Retry
-        , retry
-        , valToMsg
-        , toAddress
+        ( toAddress
         , toChecksumAddress
         , addressToString
         , isAddress
@@ -32,19 +27,12 @@ module Web3.Utils
         , unsafeToAddress
         , unsafeToTxHash
         , unsafeToBlockHash
+        , Retry
+        , retry
+        , valueToMsg
         )
 
-{-| Conversion, Unit, and Application utilities
-
-
-# Unit
-
-@docs gwei, eth
-
-
-# Application
-
-@docs Retry, retry, valToMsg
+{-| String/Type Conversion and Application Helpers
 
 
 # Address
@@ -81,13 +69,21 @@ module Web3.Utils
 
 @docs unsafeToHex, unsafeToAddress, unsafeToTxHash, unsafeToBlockHash
 
+
+# Application Helpers
+
+@docs Retry, retry, valueToMsg
+
 -}
 
 import Base58
 import BigInt exposing (BigInt)
 import Bool.Extra exposing (all)
 import Char
+import Eth.Types exposing (..)
 import Hex
+import Internal.Types as Internal
+import Internal.Utils as Internal exposing (quote, toByteLength)
 import Json.Encode as Encode exposing (Value)
 import Json.Decode as Decode exposing (Decoder)
 import Keccak exposing (ethereum_keccak_256)
@@ -97,81 +93,17 @@ import Result.Extra as Result
 import String.Extra as String
 import Task exposing (Task)
 import Time
-import Web3.Internal.Types as Internal
-import Web3.Internal.Utils as Internal exposing (quote, toByteLength)
-import Web3.Eth.Types exposing (..)
-import Web3.Types exposing (Hex, IPFSHash)
-
-
--- Units
-
-
-{-| -}
-gwei : Int -> BigInt
-gwei =
-    BigInt.fromInt >> BigInt.mul (BigInt.fromInt 1000000000)
-
-
-{-| -}
-eth : Int -> BigInt
-eth =
-    let
-        oneEth =
-            BigInt.mul (BigInt.fromInt 100) (BigInt.fromInt 10000000000000000)
-    in
-        BigInt.fromInt >> (BigInt.mul oneEth)
-
-
-
--- App
-
-
-{-| -}
-type alias Retry =
-    { attempts : Int
-    , sleep : Float
-    }
-
-
-{-| -}
-retry : Retry -> Task x a -> Task x a
-retry { attempts, sleep } myTask =
-    let
-        remaining =
-            attempts - 1
-    in
-        myTask
-            |> Task.onError
-                (\x ->
-                    if remaining > 0 then
-                        Process.sleep (sleep * Time.second)
-                            |> Task.andThen (\_ -> retry (Retry remaining sleep) myTask)
-                    else
-                        Task.fail x
-                )
-
-
-{-| Help with decoding past a result straight into a Msg
--}
-valToMsg : (a -> msg) -> (String -> msg) -> Decoder a -> (Value -> msg)
-valToMsg successMsg failureMsg decoder =
-    let
-        resultToMessage result =
-            case result of
-                Ok val ->
-                    successMsg val
-
-                Err error ->
-                    failureMsg error
-    in
-        resultToMessage << Decode.decodeValue decoder
-
 
 
 -- Address
 
 
-{-| -}
+{-| Make an Address
+
+All lowercase or uppercase strings, shaped like addresses, will result in `Ok`.
+Mixed case strings will return `Err` if checksum is invalid.
+
+-}
 toAddress : String -> Result String Address
 toAddress str =
     let
@@ -180,12 +112,16 @@ toAddress str =
 
         bytes32Address =
             String.right 40 str
+
+        emptyZerosInBytes32 =
+            String.left 24 noZeroX
     in
-        if String.length noZeroX == 64 && String.all ((==) '0') (String.left 24 noZeroX) then
+        -- Address is always stored in lowercase and without "0x"
+        if String.length noZeroX == 64 && String.all ((==) '0') emptyZerosInBytes32 then
             if isUpperCaseAddress bytes32Address || isLowerCaseAddress bytes32Address then
                 Ok <| Internal.Address <| String.toLower bytes32Address
-            else if (isChecksumAddress bytes32Address) then
-                Ok <| Internal.Address bytes32Address
+            else if (isChecksumStringyAddress bytes32Address) then
+                Ok <| Internal.Address <| String.toLower bytes32Address
             else
                 Err <| "Given address " ++ quote str ++ " failed the EIP-55 checksum test."
         else if String.length noZeroX < 40 then
@@ -195,9 +131,9 @@ toAddress str =
         else if not (isAddress noZeroX) then
             Err <| "Given address " ++ quote str ++ " contains invalid hex characters."
         else if isUpperCaseAddress noZeroX || isLowerCaseAddress noZeroX then
-            Ok <| Internal.Address <| String.toLower <| str
-        else if (isChecksumAddress noZeroX) then
-            Ok <| Internal.Address noZeroX
+            Ok <| Internal.Address (String.toLower noZeroX)
+        else if (isChecksumStringyAddress noZeroX) then
+            Ok <| Internal.Address (String.toLower noZeroX)
         else
             Err <| "Given address " ++ quote str ++ " failed the EIP-55 checksum test."
 
@@ -211,10 +147,11 @@ toChecksumAddress str =
         Err <| "Given address " ++ quote str ++ " is not a valid Ethereum address."
 
 
-{-| -}
+{-| Returns Checksummed Address
+-}
 addressToString : Address -> String
 addressToString (Internal.Address address) =
-    add0x (String.toLower address |> checksumIt)
+    (add0x << checksumIt) address
 
 
 {-| -}
@@ -224,8 +161,14 @@ isAddress =
 
 
 {-| -}
-isChecksumAddress : String -> Bool
-isChecksumAddress str =
+isChecksumAddress : Address -> Bool
+isChecksumAddress (Internal.Address address) =
+    isChecksumStringyAddress address
+
+
+{-| -}
+isChecksumStringyAddress : String -> Bool
+isChecksumStringyAddress str =
     let
         checksumTestChar addrChar hashInt =
             if hashInt >= 8 && Char.isLower addrChar || hashInt < 8 && Char.isUpper addrChar then
@@ -383,6 +326,11 @@ isSha256 =
     Regex.contains (Regex.regex "^((0[Xx]){1})?[0-9a-fA-F]{64}$")
 
 
+lowLevelKeccak256 : List Int -> List Int
+lowLevelKeccak256 =
+    ethereum_keccak_256
+
+
 
 -- IPFS
 
@@ -427,7 +375,7 @@ unsafeToHex =
 {-| -}
 unsafeToAddress : String -> Address
 unsafeToAddress =
-    remove0x >> Internal.Address
+    remove0x >> String.toLower >> Internal.Address
 
 
 {-| -}
@@ -445,11 +393,11 @@ unsafeToBlockHash =
 
 -- Internal
 -- Checksum helpers
-{- Takes first 20 bytes of keccak'd address, and converts each hex char to an int
-   Packs this list into a tuple with the split up address chars so a comparison can be made between the two.
+
+
+{-| Takes first 20 bytes of keccak'd address, and converts each hex char to an int
+Packs this list into a tuple with the split up address chars so a comparison can be made between the two.
 -}
-
-
 checksumHelper : String -> ( List Char, List Int )
 checksumHelper address =
     let
@@ -481,3 +429,48 @@ checksumIt : String -> String
 checksumIt str =
     uncurry (List.map2 compareCharToHash) (checksumHelper str)
         |> String.fromList
+
+
+
+-- App
+
+
+{-| -}
+type alias Retry =
+    { attempts : Int
+    , sleep : Float
+    }
+
+
+{-| -}
+retry : Retry -> Task x a -> Task x a
+retry { attempts, sleep } myTask =
+    let
+        remaining =
+            attempts - 1
+    in
+        myTask
+            |> Task.onError
+                (\x ->
+                    if remaining > 0 then
+                        Process.sleep (sleep * Time.second)
+                            |> Task.andThen (\_ -> retry (Retry remaining sleep) myTask)
+                    else
+                        Task.fail x
+                )
+
+
+{-| Help with decoding past a result straight into a Msg
+-}
+valueToMsg : (a -> msg) -> (String -> msg) -> Decoder a -> (Value -> msg)
+valueToMsg successMsg failureMsg decoder =
+    let
+        resultToMessage result =
+            case result of
+                Ok val ->
+                    successMsg val
+
+                Err error ->
+                    failureMsg error
+    in
+        resultToMessage << Decode.decodeValue decoder
