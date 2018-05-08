@@ -1,5 +1,5 @@
 {
-    "version": "3.0.0",
+    "version": "4.0.0",
     "summary": "feed the tree some ether.",
     "repository": "https://github.com/cmditch/mel-bew3.git",
     "license": "BSD3",
@@ -21,9 +21,6 @@
         "Evm.Decode",
         "Evm.Encode",
         "Shh",
-        "Shh.Decode",
-        "Shh.Encode",
-        "Shh.Types",
         "Web3.JsonRPC"
     ],
     "dependencies": {
