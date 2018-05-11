@@ -2,14 +2,15 @@
 
 DApps in Pure Elm
 
-More examples and docs are in the works!
-
 This library allows you to interact with the Ethereum blockchain much like `purescript-web3`, `ethers.js`, or `web3.js`.
 You can hook into web wallets like MetaMask and send transactions, as well as perform read-only operations off an Ethereum node.
 
 See [why elm?](#why-elm)
 
+More examples and docs are in the works!
+
 ## Setup
+
 
 1. **Import** the `Eth` module and it's types.
 
@@ -18,10 +19,13 @@ See [why elm?](#why-elm)
     import Eth.Types exposing (..)
     ```
 
+
+
 2. **Define** your endpoint
 
     It's good to keep the node url in your model. This way it can be kept in sync with MetaMask.    
     Example code of this "sync" pattern to come.
+
 
     ```elm
     type alias Model =
@@ -31,7 +35,10 @@ See [why elm?](#why-elm)
       { ethHttpNode = "https://mainnet.infura.com/" }
     ```
 
+
+
 3. **Simple** - Look at the blockchain.
+
 
     ```elm
     getMyBalanceInHistory : Int -> Task Http.Error BigInt
@@ -39,10 +46,13 @@ See [why elm?](#why-elm)
         Eth.getBalanceAtBlock model.ethHttpNode myAddress (BlockNum blockNum)
     ```
 
+
+
 4. **Advanced** - Chain tasks together.
 
     Get all newly created contract addresses in the latest block.    
     In a few lines of code.    
+
 
     ```elm
     findNewestContracts : Task String (List Address)
@@ -59,11 +69,15 @@ See [why elm?](#why-elm)
             |> Task.mapError prettifyHttpError
     ```
 
+
     Do not fret if the above looks perplexing. This is fairly advanced Elm. Lots is going on here.    
     Partial function application. Function composition. Maps within maps. Record accessor sugar.    
     The point is, your code can be terse, expressive, with great error handling baked in.    
 
     Btw, this is an example of [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/). A [great video](https://vimeo.com/113707214) by Scott Wlaschin.
+
+
+
 
 
 ## Why Elm?
@@ -77,18 +91,22 @@ Both from an error catching standpoint, but just as importantly from a domain mo
 Elm's "Union types" or "ADT's" allow you to fully leverage the compiler when modeling your business domain.    
 See [BlockId](http://package.elm-lang.org/packages/cmditch/elm-ethereum/latest/Eth-Types#BlockId) or [NetworkId](http://package.elm-lang.org/packages/cmditch/elm-ethereum/latest/Eth-Net#NetworkId) for instance.
 
+
+
 ### Why else?
   - **Simplicity and cohesion**
+
 ```text
     Javascript                    Elm
     ---------------------------------
-    Npm/Yarn                 built in
+    npm/yarn                 built in
     Webpack                  built in
     React                    built in
     Redux                    built in
     Typescript/Flow          built in
     Immutable.JS             built in
 ```
+
   - **Phenomenal tooling and resources**
 
      [**Time traveling debugger**](http://elm-lang.org/blog/the-perfect-bug-report) - Import/Export history. QA like a champ.    
@@ -97,6 +115,7 @@ See [BlockId](http://package.elm-lang.org/packages/cmditch/elm-ethereum/latest/E
      [**elm-test**](http://package.elm-lang.org/packages/elm-community/elm-test/latest) - Fuzz testing == legit.   
      [**elm-benchmark**](http://package.elm-lang.org/packages/BrianHicks/elm-benchmark/latest) - Clone this package and give it a whirl.     
      [**Elm Package and Docs**](http://package.elm-lang.org/) - Pleasant and consistent. Enforced semantic versioning.    
+
 
   - **Strong static types**
 
@@ -114,6 +133,8 @@ See [BlockId](http://package.elm-lang.org/packages/cmditch/elm-ethereum/latest/E
   - **Great Community**
 
      Kind. Responsive. Thoughtful. Intelligent.
+
+
 
 
 ## Contributing
