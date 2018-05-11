@@ -14,37 +14,37 @@ More examples and docs are in the works!
 
 1. **Import** the `Eth` module and it's types.
 
-    ```elm
+```elm
     import Eth
     import Eth.Types exposing (..)
-    ```
+```
 
 
 
 2. **Define** your endpoint
 
     It's good to keep the node url in your model. This way it can be kept in sync with MetaMask.    
-    Example code of this "sync" pattern to come.
+    Example code of this "sync" pattern to come.    
 
 
-    ```elm
+```elm
     type alias Model =
       { ethHttpNode : HttpProvider }
     
     init =
       { ethHttpNode = "https://mainnet.infura.com/" }
-    ```
+```
 
 
 
 3. **Simple** - Look at the blockchain.
 
 
-    ```elm
+```elm
     getMyBalanceInHistory : Int -> Task Http.Error BigInt
     getMyBalanceInHistory blockNum =
         Eth.getBalanceAtBlock model.ethHttpNode myAddress (BlockNum blockNum)
-    ```
+```
 
 
 
@@ -54,7 +54,7 @@ More examples and docs are in the works!
     In a few lines of code.    
 
 
-    ```elm
+```elm
     findNewestContracts : Task String (List Address)
     findNewestContracts =
         Eth.getBlockNumber model.ethHttpNode
@@ -67,14 +67,14 @@ More examples and docs are in the works!
                 )
             |> Task.map (List.map .contractAddress >> MaybeExtra.values)
             |> Task.mapError prettifyHttpError
-    ```
+```
 
 
-    Do not fret if the above looks perplexing. This is fairly advanced Elm. Lots is going on here.    
-    Partial function application. Function composition. Maps within maps. Record accessor sugar.    
-    The point is, your code can be terse, expressive, with great error handling baked in.    
+Do not fret if the above looks perplexing. This is fairly advanced Elm. Lots is going on here.    
+Partial function application. Function composition. Maps within maps. Record accessor sugar.    
+The point is, your code can be terse, expressive, with great error handling baked in.    
 
-    Btw, this is an example of [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/). A [great video](https://vimeo.com/113707214) by Scott Wlaschin.
+Btw, this is an example of [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/). A [great video](https://vimeo.com/113707214) by Scott Wlaschin.
 
 
 
@@ -82,8 +82,8 @@ More examples and docs are in the works!
 
 ## Why Elm?
 
-If one were to sum up the experience of programming in Elm in two words: **Fearless Refactoring**    
-This is by no means the only pleasantry Elm has to offer.   
+Sum up the experience of programming in Elm in two words: **Fearless Refactoring**    
+But this is by no means the only pleasantry Elm has to offer.   
 
 Elm's claim to fame is zero runtime exceptions. Elm's compiler and static types are your best friends.    
 Both from an error catching standpoint, but just as importantly from a domain modeling perspective.    

@@ -1,5 +1,5 @@
 {
-    "version": "6.0.0",
+    "version": "7.0.0",
     "summary": "feed the tree some ether.",
     "repository": "https://github.com/cmditch/mel-bew3.git",
     "license": "BSD3",
@@ -8,11 +8,11 @@
     ],
     "exposed-modules": [
         "Eth",
-        "Eth.ChainEff",
         "Eth.Decode",
         "Eth.Defaults",
         "Eth.Net",
         "Eth.RPC",
+        "Eth.Sentry.ChainCmd",
         "Eth.Sentry.Event",
         "Eth.Sentry.Tx",
         "Eth.Types",
