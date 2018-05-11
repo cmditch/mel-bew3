@@ -79,15 +79,15 @@ See [BlockId](http://package.elm-lang.org/packages/cmditch/elm-ethereum/latest/E
 
 ### Why else?
   - **Simplicity and cohesion**
-```
+```text
     Javascript                    Elm
     ---------------------------------
-    Npm/Yarn                 built-in
-    Webpack                  built-in
-    React                    built-in
-    Redux                    built-in
-    Typescript/Flow          built-in
-    Immutable.JS             built-in
+    Npm/Yarn                 built in
+    Webpack                  built in
+    React                    built in
+    Redux                    built in
+    Typescript/Flow          built in
+    Immutable.JS             built in
 ```
   - **Phenomenal tooling and resources**
 
