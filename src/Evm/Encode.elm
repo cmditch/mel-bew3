@@ -1,22 +1,28 @@
 module Evm.Encode
     exposing
         ( Encoding(..)
-        , encodeData
-        , encodeDataWithDebug
+        , encodeFunctionCall
+        , encodeFunctionCallWithDebug
+        , evmEncode
         )
 
 {-| Encode before sending RPC Calls
 
-@docs Encoding, encodeData, encodeDataWithDebug
+@docs Encoding, encodeFunctionCall, encodeFunctionCallWithDebug
+
+
+# Low-Level
+
+@docs evmEncode
 
 -}
 
 import BigInt exposing (BigInt)
 import Eth.Types exposing (Hex, IPFSHash)
-import Eth.Utils exposing (functionSig, ipfsToBytes32)
+import Eth.Utils as U exposing (functionSig, ipfsToBytes32)
 import Eth.Types exposing (Address)
 import Internal.Types as Internal
-import Internal.Utils exposing (..)
+import Internal.Utils as IU exposing (..)
 
 
 {-| Not yet implemented :
@@ -29,8 +35,8 @@ type Encoding
     = AddressE Address
     | UintE BigInt
     | BoolE Bool
-    | DBytesE String
-    | BytesE String
+    | DBytesE Hex
+    | BytesE Hex
     | StringE String
     | ListE Encoding
     | IPFSHashE IPFSHash
@@ -38,15 +44,21 @@ type Encoding
 
 
 {-| -}
-encodeData : String -> List Encoding -> Hex
-encodeData =
-    encodeData_ False
+encodeFunctionCall : String -> List Encoding -> Hex
+encodeFunctionCall =
+    encodeFunctionCall_ False
 
 
 {-| -}
-encodeDataWithDebug : String -> List Encoding -> Hex
-encodeDataWithDebug =
-    encodeData_ True
+encodeFunctionCallWithDebug : String -> List Encoding -> Hex
+encodeFunctionCallWithDebug =
+    encodeFunctionCall_ True
+
+
+{-| -}
+evmEncode : Encoding -> Hex
+evmEncode =
+    lowLevelEncode >> Internal.Hex
 
 
 
@@ -54,45 +66,45 @@ encodeDataWithDebug =
 
 
 {-| -}
-encodeData_ : Bool -> String -> List Encoding -> Hex
-encodeData_ isDebug sig encodings =
+encodeFunctionCall_ : Bool -> String -> List Encoding -> Hex
+encodeFunctionCall_ isDebug sig encodings =
     let
         byteCodeEncodings =
-            List.map encode encodings
+            List.map lowLevelEncode encodings
                 |> String.join ""
 
         data =
             if isDebug then
-                Debug.log ("Debug Contract Call " ++ sig) (functionSig sig ++ byteCodeEncodings)
+                Debug.log ("Debug Contract Call " ++ sig) (U.hexToString (U.functionSig sig) ++ byteCodeEncodings)
             else
-                functionSig sig ++ byteCodeEncodings
+                (IU.remove0x <| U.hexToString <| U.functionSig sig) ++ byteCodeEncodings
     in
         Internal.Hex data
 
 
 {-| -}
-encode : Encoding -> String
-encode enc =
+lowLevelEncode : Encoding -> String
+lowLevelEncode enc =
     case enc of
         AddressE (Internal.Address address) ->
-            leftPad address
+            IU.leftPadTo64 address
 
         UintE uint ->
             BigInt.toHexString uint
-                |> leftPad
+                |> IU.leftPadTo64
 
         BoolE True ->
-            leftPad "1"
+            IU.leftPadTo64 "1"
 
         BoolE False ->
-            leftPad "0"
+            IU.leftPadTo64 "0"
 
         DBytesE _ ->
             "not implemeneted yet"
 
-        BytesE string ->
-            remove0x string
-                |> leftPad
+        BytesE (Internal.Hex hexString) ->
+            IU.remove0x hexString
+                |> IU.leftPadTo64
 
         StringE string ->
             "not implemeneted yet"
@@ -101,7 +113,8 @@ encode enc =
             "not implemeneted yet"
 
         IPFSHashE ipfsHash ->
-            ipfsToBytes32 ipfsHash
+            U.ipfsToBytes32 ipfsHash
+                |> \(Internal.Hex zerolessHex) -> zerolessHex
 
         Custom string ->
-            string
+            IU.remove0x string

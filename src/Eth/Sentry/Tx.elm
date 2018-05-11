@@ -39,17 +39,16 @@ module Eth.Sentry.Tx
 -}
 
 import Dict exposing (Dict)
-import Json.Decode as Decode exposing (Value, Decoder)
-import Json.Encode as Encode
-import Maybe.Extra as Maybe
-import Task exposing (Task)
-import Http
-import Process
 import Eth
-import Eth.Encode as Encode
 import Eth.Decode as Decode
 import Eth.Types exposing (..)
 import Eth.Utils exposing (Retry, retry, txHashToString)
+import Http
+import Json.Decode as Decode exposing (Value, Decoder)
+import Json.Encode as Encode
+import Maybe.Extra as Maybe
+import Process
+import Task exposing (Task)
 
 
 {-| -}
@@ -86,15 +85,15 @@ listen (TxSentry sentry) =
 
 
 {-| -}
-send : (Tx -> msg) -> Send -> TxSentry msg -> ( TxSentry msg, Cmd msg )
-send onBroadcast txParams sentry =
-    send_ { onSign = Nothing, onBroadcast = Just onBroadcast, onMined = Nothing } txParams sentry
+send : (Tx -> msg) -> TxSentry msg -> Send -> ( TxSentry msg, Cmd msg )
+send onBroadcast sentry txParams =
+    send_ sentry { onSign = Nothing, onBroadcast = Just onBroadcast, onMined = Nothing } txParams
 
 
 {-| -}
-sendWithReceipt : (Tx -> msg) -> (TxReceipt -> msg) -> Send -> TxSentry msg -> ( TxSentry msg, Cmd msg )
-sendWithReceipt onBroadcast onMined txParams sentry =
-    send_ { onSign = Nothing, onBroadcast = Just onBroadcast, onMined = Just ( onMined, Nothing ) } txParams sentry
+sendWithReceipt : (Tx -> msg) -> (TxReceipt -> msg) -> TxSentry msg -> Send -> ( TxSentry msg, Cmd msg )
+sendWithReceipt onBroadcast onMined sentry txParams =
+    send_ sentry { onSign = Nothing, onBroadcast = Just onBroadcast, onMined = Just ( onMined, Nothing ) } txParams
 
 
 {-|
@@ -126,7 +125,7 @@ type alias TxTracker =
 
 
 {-| -}
-customSend : CustomSend msg -> Send -> TxSentry msg -> ( TxSentry msg, Cmd msg )
+customSend : TxSentry msg -> CustomSend msg -> Send -> ( TxSentry msg, Cmd msg )
 customSend =
     send_
 
@@ -153,8 +152,8 @@ changeNode newNodePath (TxSentry sentry) =
 -- INTERNAL
 
 
-send_ : CustomSend msg -> Send -> TxSentry msg -> ( TxSentry msg, Cmd msg )
-send_ sendParams txParams (TxSentry sentry) =
+send_ : TxSentry msg -> CustomSend msg -> Send -> ( TxSentry msg, Cmd msg )
+send_ (TxSentry sentry) sendParams txParams =
     let
         newTxs =
             Dict.insert sentry.ref (newTxState txParams sendParams) sentry.txs
@@ -477,7 +476,7 @@ encodeTxData : Int -> Send -> Value
 encodeTxData ref send =
     Encode.object
         [ ( "ref", Encode.int ref )
-        , ( "txParams", Encode.txSend send )
+        , ( "txParams", Eth.encodeSend send )
         ]
 
 
