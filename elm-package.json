@@ -1,7 +1,7 @@
 {
-    "version": "9.0.0",
+    "version": "1.0.0",
     "summary": "feed the tree some ether.",
-    "repository": "https://github.com/cmditch/mel-bew3.git",
+    "repository": "https://github.com/cmditch/elm-ethereum.git",
     "license": "BSD3",
     "source-directories": [
         "./src"
@@ -15,6 +15,7 @@
         "Eth.Sentry.ChainCmd",
         "Eth.Sentry.Event",
         "Eth.Sentry.Tx",
+        "Eth.Sentry.Wallet",
         "Eth.Types",
         "Eth.Units",
         "Eth.Utils",

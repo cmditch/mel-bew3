@@ -2,6 +2,17 @@
 
 **DApps in Pure Elm**
 
+
+**Dev Note 5/28/18:**  
+*elm-ethereum* is not quite ready for a 1.0 release.  
+In the mean time, use the [dev version of the package](http://package.elm-lang.org/packages/cmditch/mel-bew3/latest).  
+
+Check out the [simple starter example](https://github.com/cmditch/elm-ethereum/tree/master/examples/simple/Main.elm)  
+
+Cool Feature:  See [here](https://github.com/cmditch/elm-ethereum/blob/master/examples/simple/Main.elm#L138) how you can easily track the block depth of transactions after they've been mined.
+
+-----------------------
+
 This library allows you to interact with the Ethereum blockchain much like `purescript-web3`, `ethers.js`, or `web3.js`.
 You can hook into web wallets like MetaMask and send transactions, as well as perform read-only operations on smart contracts.
 
@@ -53,7 +64,7 @@ See [why elm?](#why-elm)
                         |> List.map (Eth.getTxReceipt model.ethNode)
                         |> Task.sequence
                 )
-            |> Task.map (List.map .contractAddress >> MaybeExtra.values)
+            |> Task.map (MaybeExtra.values << List.map .contractAddress)
             |> Task.mapError prettifyHttpError
 ```  
 
@@ -65,7 +76,7 @@ Btw, this is an example of [Railway Oriented Programming](https://fsharpforfunan
 
 ## Why Elm
 
-I'd sum up the experience of programming in Elm in two words: **Fearless Refactoring**
+I'd sum up the experience of programming in Elm with two words: **Fearless Refactoring**
 
 This is by no means the only pleasantry the fine tree has to offer.
 
@@ -73,7 +84,7 @@ Elm's claim to fame is zero runtime exceptions. It's compiler and static types a
 
 **Union Types** allow you to fully leverage the compiler when modeling your business domain. See [BlockId](http://package.elm-lang.org/packages/cmditch/elm-ethereum/latest/Eth-Types#BlockId) or [NetworkId](http://package.elm-lang.org/packages/cmditch/elm-ethereum/latest/Eth-Net#NetworkId) for instance.  
 
-Union types also allow you to hide implementation details by using them as "opaque types". An [Address](https://github.com/cmditch/elm-ethereum/blob/master/src/Internal/Types.elm#L4) is just a string under the hood, but you can never directly touch that string.
+Union types also allow you to hide implementation details by implementing "opaque types".  An [Address](https://github.com/cmditch/elm-ethereum/blob/master/src/Internal/Types.elm#L4) is just a string under the hood, but you can never directly touch that string.
 
 ### Why else
 

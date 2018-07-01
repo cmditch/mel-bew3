@@ -1,3 +1,4 @@
 elm-stuff/
 rsync-exclude
 syncme
+node_modules
