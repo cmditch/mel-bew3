@@ -1,7 +1,8 @@
-module Evm.Decode
+module Abi.Decode
     exposing
-        ( EvmDecoder
+        ( AbiDecoder
         , uint
+        , int
         , bool
         , address
         , string
@@ -10,7 +11,7 @@ module Evm.Decode
         , staticArray
         , dynamicArray
         , ipfsHash
-        , evmDecode
+        , abiDecode
         , andMap
         , toElmDecoder
         , toElmDecoderWithDebug
@@ -21,10 +22,12 @@ module Evm.Decode
 
 {-| Decode RPC Responses
 
+)
+
 
 # Primitives
 
-@docs EvmDecoder, uint, bool, address, string
+@docs AbiDecoder, uint, int, bool, address, string
 
 
 # Bytes
@@ -44,7 +47,7 @@ module Evm.Decode
 
 # Run Decoders
 
-@docs evmDecode, andMap, toElmDecoder, toElmDecoderWithDebug, fromString
+@docs abiDecode, andMap, toElmDecoder, toElmDecoderWithDebug, fromString
 
 
 # Events/Logs
@@ -63,6 +66,7 @@ import BigInt exposing (BigInt)
 import Internal.Decode exposing (resultToDecoder)
 import Eth.Types exposing (IPFSHash, Address)
 import Eth.Utils as U exposing (toAddress)
+import Abi.Int as AbiInt
 import Hex
 import Internal.Utils exposing (..)
 import String.UTF8 as UTF8
@@ -72,8 +76,8 @@ import Json.Decode as Decode exposing (Decoder)
 
 
 {-| -}
-type EvmDecoder a
-    = EvmDecoder (Tape -> Result String ( Tape, a ))
+type AbiDecoder a
+    = AbiDecoder (Tape -> Result String ( Tape, a ))
 
 
 {-|
@@ -93,31 +97,31 @@ type Tape
 {-| Similar to Json.Decode.Pipeline.decode
 also a synonym for Json.Decode.succeed
 -}
-evmDecode : a -> EvmDecoder a
-evmDecode val =
-    EvmDecoder (\tape -> Ok ( tape, val ))
+abiDecode : a -> AbiDecoder a
+abiDecode val =
+    AbiDecoder (\tape -> Ok ( tape, val ))
 
 
 {-| -}
-andMap : EvmDecoder a -> EvmDecoder (a -> b) -> EvmDecoder b
+andMap : AbiDecoder a -> AbiDecoder (a -> b) -> AbiDecoder b
 andMap dVal dFunc =
     map2 (\f v -> f v) dFunc dVal
 
 
 {-| -}
-fromString : EvmDecoder a -> String -> Result String a
+fromString : AbiDecoder a -> String -> Result String a
 fromString =
     decodeStringWithDebug Nothing
 
 
 {-| -}
-toElmDecoder : EvmDecoder a -> Decoder a
+toElmDecoder : AbiDecoder a -> Decoder a
 toElmDecoder =
     decodeStringWithDebug Nothing >> resultToDecoder
 
 
 {-| -}
-toElmDecoderWithDebug : String -> EvmDecoder a -> Decoder a
+toElmDecoderWithDebug : String -> AbiDecoder a -> Decoder a
 toElmDecoderWithDebug functionName =
     decodeStringWithDebug (Just functionName) >> resultToDecoder
 
@@ -127,36 +131,36 @@ toElmDecoderWithDebug functionName =
 
 
 {-| -}
-decodeStringWithDebug : Maybe String -> EvmDecoder a -> String -> Result String a
-decodeStringWithDebug debug (EvmDecoder evmDecoder) evmString =
+decodeStringWithDebug : Maybe String -> AbiDecoder a -> String -> Result String a
+decodeStringWithDebug debug (AbiDecoder abiDecoder) abiString =
     let
-        str =
+        _ =
             case debug of
                 Just function ->
-                    Debug.log ("Debug Contract Call Response " ++ function) evmString
+                    Debug.log ("Debug Contract Call Response " ++ function) abiString
 
                 Nothing ->
-                    evmString
+                    abiString
     in
-        remove0x str
+        remove0x abiString
             |> (\a -> Tape a a)
-            |> evmDecoder
+            |> abiDecoder
             |> Result.map Tuple.second
 
 
 {-| -}
-map : (a -> b) -> EvmDecoder a -> EvmDecoder b
-map f (EvmDecoder decA) =
-    EvmDecoder <|
+map : (a -> b) -> AbiDecoder a -> AbiDecoder b
+map f (AbiDecoder decA) =
+    AbiDecoder <|
         \tape0 ->
             decA tape0
                 |> Result.map (Tuple.mapSecond f)
 
 
 {-| -}
-map2 : (a -> b -> c) -> EvmDecoder a -> EvmDecoder b -> EvmDecoder c
-map2 f (EvmDecoder decA) (EvmDecoder decB) =
-    EvmDecoder <|
+map2 : (a -> b -> c) -> AbiDecoder a -> AbiDecoder b -> AbiDecoder c
+map2 f (AbiDecoder decA) (AbiDecoder decB) =
+    AbiDecoder <|
         \tape0 ->
             decA tape0
                 |> Result.andThen
@@ -171,9 +175,9 @@ map2 f (EvmDecoder decA) (EvmDecoder decB) =
 
 
 {-| -}
-uint : EvmDecoder BigInt
+uint : AbiDecoder BigInt
 uint =
-    EvmDecoder <|
+    AbiDecoder <|
         \(Tape original altered) ->
             take64 altered
                 |> add0x
@@ -183,7 +187,18 @@ uint =
 
 
 {-| -}
-bool : EvmDecoder Bool
+int : AbiDecoder BigInt
+int =
+    AbiDecoder <|
+        \(Tape original altered) ->
+            take64 altered
+                |> AbiInt.fromString
+                |> Result.fromMaybe "Error Decoding Int into BigInt"
+                |> Result.map (newTape original altered)
+
+
+{-| -}
+bool : AbiDecoder Bool
 bool =
     let
         parseBool b =
@@ -202,7 +217,7 @@ bool =
                 False ->
                     Err ("Boolean decode error." ++ b ++ " is not boolean.")
     in
-        EvmDecoder <|
+        AbiDecoder <|
             \(Tape original altered) ->
                 take64 altered
                     |> parseBool
@@ -210,9 +225,9 @@ bool =
 
 
 {-| -}
-address : EvmDecoder Address
+address : AbiDecoder Address
 address =
-    EvmDecoder <|
+    AbiDecoder <|
         \(Tape original altered) ->
             take64 altered
                 |> toAddress
@@ -220,9 +235,9 @@ address =
 
 
 {-| -}
-string : EvmDecoder String
+string : AbiDecoder String
 string =
-    EvmDecoder <|
+    AbiDecoder <|
         \(Tape original altered) ->
             take64 altered
                 |> buildBytes original
@@ -234,23 +249,24 @@ string =
 
 
 -- Bytes
+-- TODO - Change to Hex?
 
 
 {-| -}
-staticBytes : Int -> EvmDecoder String
+staticBytes : Int -> AbiDecoder String
 staticBytes bytesLen =
-    EvmDecoder <|
+    AbiDecoder <|
         \(Tape original altered) ->
-            take64 altered
+            String.left (bytesLen * 2) altered
                 |> add0x
                 |> Ok
                 |> Result.map (newTape original altered)
 
 
 {-| -}
-dynamicBytes : EvmDecoder String
+dynamicBytes : AbiDecoder String
 dynamicBytes =
-    EvmDecoder <|
+    AbiDecoder <|
         \(Tape original altered) ->
             take64 altered
                 |> buildBytes original
@@ -263,31 +279,98 @@ dynamicBytes =
 
 
 {-| Decode Statically Sized Arrays
-(sArray 10 uint) == uint256[10]
+
+    staticArray 10 uint == uint256[10]
+
 -}
-staticArray : Int -> EvmDecoder a -> EvmDecoder (List a)
-staticArray arrSize decoder =
-    EvmDecoder <|
-        \(Tape original altered) ->
-            String.left (arrSize * 64) altered
-                |> StringExtra.break 64
-                |> List.map (fromString decoder)
-                |> ResultExtra.combine
-                |> Result.map (\list -> ( Tape original (String.dropLeft (arrSize * 64) altered), list ))
+staticArray : Int -> AbiDecoder a -> AbiDecoder (List a)
+staticArray len dec =
+    AbiDecoder <|
+        arrayHelp [] len dec
 
 
 {-| Decode Dynamically Sized Arrays
-(dArray address) == address[]
+
+    dynamicArray address == address[]
+
 -}
-dynamicArray : EvmDecoder a -> EvmDecoder (List a)
-dynamicArray decoder =
-    EvmDecoder <|
+
+
+
+{- Dev Notes for Dynamic array decoder
+
+   Example array-of-vectors `uint[2][]` returned from the ABI
+   We'll use a multi-return value data type of `myFunc(uint256[2][],uint,bool)`
+   And use 4 byte words, instead of 32 byte words.
+   -----------------------------------
+   0000000c  -  arrayDataPointer - says array data starts after 12 bytes (0xc == 12 == 24 chars)
+   00000042  -  uint of 0x42
+   00000001  -  bool of true
+   00000003  -  start of dynamic array (24 bytes in). This says "I am three in length, of whatever data type I'm comrpised of". In this case `uint[2]`
+   00000001  -  first element of first uint[2]
+   00000002  -  last element of first uint[2]
+   00000003  -  first element of second uint[2]
+   00000004  -  last element of second uint[2]
+   00000005  -  first element of last uint[2]
+   00000006  -  last element of last uint[2]
+
+   This will decode to `{ dynArrayOfUintVector = [[1,2], [3,4], [5,6]], singleUint = 66, singleBool = True }`
+-}
+
+
+dynamicArray : AbiDecoder a -> AbiDecoder (List a)
+dynamicArray valDecoder =
+    AbiDecoder <|
         \(Tape original altered) ->
-            take64 altered
-                |> buildDynArray original
-                |> Result.map (List.map (fromString decoder))
-                |> Result.andThen ResultExtra.combine
-                |> Result.map (newTape original altered)
+            let
+                getPointerToArrayData : Result String Int
+                getPointerToArrayData =
+                    take64 altered
+                        |> Hex.fromString
+                        |> Result.map ((*) 2)
+
+                getArrayData : Int -> Result String ( Int, String )
+                getArrayData lengthIndex =
+                    String.slice lengthIndex (lengthIndex + 64) original
+                        |> Hex.fromString
+                        |> Result.map (\arrayLength -> ( arrayLength, String.dropLeft (lengthIndex + 64) original ))
+            in
+                getPointerToArrayData
+                    |> Result.andThen getArrayData
+                    |> Result.andThen
+                        (\( arrayLength, rawArrayData ) ->
+                            (Tape original rawArrayData)
+                                |> arrayHelp [] arrayLength valDecoder
+                                |> Result.map
+                                    (\( Tape _ _, arrayData ) ->
+                                        ( Tape original (drop64 altered), arrayData )
+                                    )
+                        )
+
+
+{-|
+
+    Accumulates a list of decoded values.
+    The `altered` tape will be eaten up as the value decoder works away one value at a time.
+    The list of decoded values, along with the newly altered tape is returned
+
+    The old versions of array decoding assumed all values inside the array were 32 bytes chunks.
+    And would break the string into 32 byte chunks and map a decoder over them.
+    This new fold style approach, vs the previous map style approach,
+    helps us deal with array elements of arbitrary lengths.
+-}
+arrayHelp : List a -> Int -> AbiDecoder a -> Tape -> Result String ( Tape, List a )
+arrayHelp accum len (AbiDecoder decoder) tape =
+    case len of
+        0 ->
+            Ok ( tape, List.reverse accum )
+
+        n ->
+            decoder tape
+                |> Result.andThen
+                    (\( tape, val ) ->
+                        arrayHelp (val :: accum) (n - 1) (AbiDecoder decoder) tape
+                    )
 
 
 
@@ -297,9 +380,9 @@ dynamicArray decoder =
 {-| Decodes bytes32 into IPFS Hash (assuming use of 32 byte sha256)
 Not IPFS future proof. See <https://ethereum.stackexchange.com/questions/17094/how-to-store-ipfs-hash-using-bytes>
 -}
-ipfsHash : EvmDecoder IPFSHash
+ipfsHash : AbiDecoder IPFSHash
 ipfsHash =
-    EvmDecoder <|
+    AbiDecoder <|
         \(Tape original altered) ->
             take64 altered
                 |> (++) "0x1220"
@@ -316,18 +399,18 @@ ipfsHash =
 
 {-| Useful for decoding data withing events/logs.
 -}
-topic : Int -> EvmDecoder a -> Decoder a
-topic index evmDecoder =
-    toElmDecoder evmDecoder
+topic : Int -> AbiDecoder a -> Decoder a
+topic index abiDecoder =
+    toElmDecoder abiDecoder
         |> Decode.index index
         |> Decode.field "topics"
 
 
 {-| Useful for decoding data withing events/logs.
 -}
-data : Int -> EvmDecoder a -> Decoder a
-data index evmDecoder =
-    toElmDecoder (dropBytes index evmDecoder)
+data : Int -> AbiDecoder a -> Decoder a
+data index abiDecoder =
+    toElmDecoder (dropBytes index abiDecoder)
         |> Decode.field "data"
 
 
@@ -354,6 +437,7 @@ Example -
 -}
 buildBytes : String -> String -> Result String String
 buildBytes fullTape lengthIndex =
+    -- TODO Test this works with dynamic lists
     let
         hexToLength =
             Hex.fromString >> Result.map ((*) 2)
@@ -370,46 +454,11 @@ buildBytes fullTape lengthIndex =
                 )
 
 
-{-| Takes the index pointer to the beginning of the array data (the first piece being the array length)
-and the full return data, and slices out the
-
-Example - Here is a returns(address[],uint256)
-
-       0000000000000000000000000000000000000000000000000000000000000040 -- Start index of address[] (starts at byte 64, or the 128th character)
-       0000000000000000000000000000000000000000000000000000000000000123 -- Some Uint256
-       0000000000000000000000000000000000000000000000000000000000000003 -- Length of address[]
-       000000000000000000000000ED9878336d5187949E4ca33359D2C47c846c9Dd3 -- First Address
-       0000000000000000000000006A987e3C0cd7Ed478Ce18C4cE00a0B313299365B -- Second Address
-       000000000000000000000000aD9178336d523494914ca37359D2456ef123466c -- Third Address
-
-       buildDynArray fullReturnData startIndex
-       > Ok ["000000000000000000000000ED9878336d5187949E4ca33359D2C47c846c9Dd3", secondAddress, thirdAddress]
-
--}
-buildDynArray : String -> String -> Result String (List String)
-buildDynArray fullTape lengthIndex =
-    let
-        hexToLength =
-            Hex.fromString >> Result.map ((*) 2)
-
-        sliceData dataIndex arrLength =
-            String.slice dataIndex (dataIndex + (arrLength * 64)) fullTape
-    in
-        hexToLength lengthIndex
-            |> Result.andThen
-                (\index ->
-                    String.slice index (index + 64) fullTape
-                        |> Hex.fromString
-                        |> Result.map (\dataLength -> sliceData (index + 64) dataLength)
-                )
-            |> Result.map (StringExtra.break 64)
-
-
 {-| Useful for decoding data withing events/logs.
 -}
-dropBytes : Int -> EvmDecoder a -> EvmDecoder a
-dropBytes location (EvmDecoder decoder) =
-    EvmDecoder <|
+dropBytes : Int -> AbiDecoder a -> AbiDecoder a
+dropBytes location (AbiDecoder decoder) =
+    AbiDecoder <|
         \(Tape original altered) ->
             String.dropLeft (location * 64) altered
                 |> Tape original

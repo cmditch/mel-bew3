@@ -1,69 +1,49 @@
-module Int exposing (..)
+module Abi.Int exposing (..)
 
 import BigInt exposing (BigInt)
 import String.Extra as StringExtra
+import Internal.Utils exposing (remove0x, add0x)
 
 
--- Tests
+fromString : String -> Maybe BigInt
+fromString str =
+    let
+        no0x =
+            remove0x str
+    in
+        if isNegIntUnsafe no0x then
+            no0x
+                |> String.toList
+                |> List.map toBinaryUnsafe
+                |> String.join ""
+                |> twosComplementUnsafe
+                |> StringExtra.break 4
+                |> List.map fromBinaryUnsafe
+                |> String.fromList
+                |> add0x
+                |> String.cons '-'
+                |> BigInt.fromString
+        else
+            BigInt.fromString (add0x str)
 
 
-test : Bool
-test =
-    List.map runTest testCases
-        |> List.all ((==) True)
+toString : BigInt -> String
+toString num =
+    let
+        ( xs, twosComplementOrNotTwosComplement ) =
+            case BigInt.toHexString num |> String.toList of
+                '-' :: xs ->
+                    ( xs, twosComplementUnsafe >> String.padLeft 256 '1' )
 
-
-runTest : ( String, String ) -> Bool
-runTest ( stringyInt, hexyInt ) =
-    decodeInt hexyInt
-        |> Maybe.map BigInt.toString
-        |> Maybe.map ((==) stringyInt)
-        |> Maybe.withDefault False
-
-
-testCases : List ( String, String )
-testCases =
-    [ ( "4096", "0x1000" )
-    , ( "0", "0x0000000000000000000000000000000000000000000000000000000000000000" )
-    , ( "1", "0x0000000000000000000000000000000000000000000000000000000000000001" )
-    , ( "-1", "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" )
-    , ( "2", "0x0000000000000000000000000000000000000000000000000000000000000002" )
-    , ( "-2", "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe" )
-    , ( "10", "0x000000000000000000000000000000000000000000000000000000000000000a" )
-    , ( "-10", "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6" )
-    , ( "11", "0x000000000000000000000000000000000000000000000000000000000000000b" )
-    , ( "-11", "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff5" )
-    , ( "127", "0x000000000000000000000000000000000000000000000000000000000000007f" )
-    , ( "-127", "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81" )
-    , ( "-128", "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80" )
-    , ( "32767", "0x0000000000000000000000000000000000000000000000000000000000007fff" )
-    , ( "-32767", "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8001" )
-    , ( "-32768", "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8000" )
-    , ( "57896044618658097711785492504343953926634992332820282019728792003956564819967", "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" )
-    , ( "-57896044618658097711785492504343953926634992332820282019728792003956564819968", "0x8000000000000000000000000000000000000000000000000000000000000000" )
-    ]
-
-
-
--- First pass at implementation
-
-
-decodeInt : String -> Maybe BigInt
-decodeInt str =
-    if isNegIntUnsafe (remove0x str) then
-        remove0x str
-            |> String.toList
-            |> List.map toBinaryUnsafe
+                xs ->
+                    ( xs, String.padLeft 256 '0' )
+    in
+        List.map toBinaryUnsafe xs
             |> String.join ""
-            |> twosComplementUnsafe
+            |> twosComplementOrNotTwosComplement
             |> StringExtra.break 4
             |> List.map fromBinaryUnsafe
             |> String.fromList
-            |> add0x
-            |> String.cons '-'
-            |> BigInt.fromString
-    else
-        BigInt.fromString str
 
 
 {-| Bit-Flip-Fold-Holla-for-a-Dolla
@@ -94,16 +74,12 @@ twosComplementUnsafe str =
                 ( '1', True ) ->
                     ( String.cons '0' accum, True )
 
-                -- This part is unsafe. Assumes every char is '1' or '0'
+                -- This is the unsafe part. Assumes every char is '1' or '0'
                 _ ->
                     ( accum, True )
     in
         String.foldr reducer ( "", False ) str
             |> Tuple.first
-
-
-
--- Internal
 
 
 toBinaryUnsafe : Char -> String
@@ -158,7 +134,7 @@ toBinaryUnsafe char =
             "1111"
 
         _ ->
-            ""
+            "error converting hex to binary"
 
 
 fromBinaryUnsafe : String -> Char
@@ -269,21 +245,3 @@ isNegIntUnsafe str =
 
         _ ->
             False
-
-
-{-| -}
-remove0x : String -> String
-remove0x str =
-    if String.startsWith "0x" str || String.startsWith "0X" str then
-        String.dropLeft 2 str
-    else
-        str
-
-
-{-| -}
-add0x : String -> String
-add0x str =
-    if String.startsWith "0x" str || String.startsWith "0X" str then
-        str
-    else
-        "0x" ++ str

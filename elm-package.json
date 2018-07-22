@@ -1,5 +1,5 @@
 {
-    "version": "10.0.0",
+    "version": "11.0.0",
     "summary": "feed the tree some ether.",
     "repository": "https://github.com/cmditch/mel-bew3.git",
     "license": "BSD3",
@@ -19,8 +19,8 @@
         "Eth.Types",
         "Eth.Units",
         "Eth.Utils",
-        "Evm.Decode",
-        "Evm.Encode",
+        "Abi.Decode",
+        "Abi.Encode",
         "Shh"
     ],
     "dependencies": {
